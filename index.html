@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <title>Статистика аварий</title>
+</head>
+
+<body style="text-align: center;">
+
+  <select name="row_field_name" id="row_field_name"></select>
+
+  <div id="gibdd_stat_chart"></div>
+
+</body>
+
+<script>
+  const log = console.log;
+
+  const columns_en_ru = {
+    "Дата": "date",
+    "ДТП": "dtp",
+    "Погибли": "pogibli",
+    "Погибло детей": "pogiblo_detei",
+    "Ранены": "raneni",
+    "Ранено детей": "raneno_detei"
+  };
+
+  var options = Object.keys(columns_en_ru);
+  options.shift();
+
+  var row_field_name = "dtp"
+
+  d3.select("#row_field_name")
+    .on("change", function (item) {
+      d3.select("#gibdd_stat_chart").select("svg").remove();
+
+      row_field_name = d3.select(this).node().value
+      drawChart(row_field_name);
+    })
+    .selectAll("option")
+    .data(options).enter()
+    .append("option")
+    .attr("value", item => columns_en_ru[item])
+    .text(item => item)
+
+
+  var chart_params = {
+    width: document.documentElement.clientWidth - 100,
+    height: document.documentElement.clientHeight - 100,
+    margin: { top: 30, bottom: 40, left: 50, right: 50 },
+  }
+
+  const parseDate = d3.timeParse("%d.%m.%Y");
+  const formatDate = d3.timeFormat('%d.%m.%Y');
+
+  function drawChart(row_field_name) {
+
+    var chart = d3.select("#gibdd_stat_chart").append("svg")
+      .attr("width", chart_params.width)
+      .attr("height", chart_params.height);
+
+
+    d3.csv("crash_info_file.csv", function (row) {
+      var row_obj = {}
+      for (let key_word in row) {
+        row_obj[columns_en_ru[key_word]] = row[key_word]
+      }
+      row_obj["date_obj"] = parseDate(row_obj["date"]);
+
+      return row_obj;
+    }).then(function (rows) {
+      var date_min, date_max;
+      [date_min, date_max] = d3.extent(rows, row => row.date);
+
+      const xScale = d3.scaleTime()
+        .domain([parseDate(date_min), parseDate(date_max)])
+        .range([chart_params.margin.left, chart_params.width - chart_params.margin.right]);
+
+      var xAxis = d3.axisBottom(xScale)
+        .ticks(rows.length - 1)
+        .tickFormat(formatDate)
+        .tickPadding(10)
+
+      chart.append("g")
+        .classed("x-axis", true)
+        .attr("transform", "translate(0, " + (chart_params.height - chart_params.margin.bottom) + ")")
+        .call(xAxis)
+
+      drawGridLine("x")
+
+
+      var min_y, max_y;
+      [min_y, max_y] = d3.extent(rows, row => row[row_field_name]);
+      const yScale = d3.scaleLinear()
+        .domain([min_y, max_y])
+        .range([chart_params.height - chart_params.margin.bottom, chart_params.margin.top]);
+
+
+      var yAxis = d3.axisLeft(yScale)
+        .tickValues(rows.map(row => row[row_field_name]))
+        .tickFormat(d3.format("d"))
+        .tickPadding(10)
+
+      chart.append("g")
+        .classed("y-axis", true)
+        .attr("transform", "translate(" + chart_params.margin.left + ", 0)")
+        .call(yAxis)
+
+      drawGridLine("y");
+
+
+      chart.selectAll("circle.gibdd_circle." + row_field_name)
+        .data(rows).enter()
+        .append("circle")
+        .classed("gibdd_circle", true)
+        .classed(row_field_name, true)
+        .attr("cx", row => xScale(row.date_obj))
+        .attr("cy", row => yScale(row[row_field_name]))
+        .attr("r", 10)
+        .attr("fill", "blue")
+
+    })
+  }
+
+  function drawGridLine(axis_name) {
+    d3.selectAll("g."+axis_name+"-axis g.tick")
+      .append("line")
+      .classed("line", true)
+      .attr("x0", 0)
+      .attr("y0", 0)
+      .attr("x1", axis_name == "y" ? chart_params.width : 0)
+      .attr("y1", axis_name == "y" ? 0 : -chart_params.height)
+      .style("stroke", "rgba(0, 0, 0, 0.15)")
+  }
+
+  drawChart(row_field_name)
+</script>
+
+</html>
