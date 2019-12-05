@@ -81,7 +81,7 @@
         .range([chart_params.margin.left, chart_params.width - chart_params.margin.right]);
 
       var xAxis = d3.axisBottom(xScale)
-        .ticks(rows.length)
+        .ticks(rows.length-1)
         .tickFormat(formatDate)
         .tickPadding(10)
 
