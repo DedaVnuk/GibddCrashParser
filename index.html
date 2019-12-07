@@ -113,6 +113,17 @@
       drawGridLine("y");
 
 
+      var line = d3.line()
+        .x(row => xScale(row.date_obj))
+        .y(row => yScale(row[row_field_name]))
+        .curve(d3.curveMonotoneX)
+
+      chart.append("path")
+        .attr("d", line(rows))
+        .attr("fill", "none")
+        .attr("stroke", "black")
+        .attr("stroke-dasharray", 2)
+
       chart.selectAll("circle.gibdd_circle." + row_field_name)
         .data(rows).enter()
         .append("circle")
