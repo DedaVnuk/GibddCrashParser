@@ -133,8 +133,30 @@
         .attr("cy", row => yScale(row[row_field_name]))
         .attr("r", 10)
         .attr("fill", "blue")
+        .on("mouseenter", function(circle, index) {
+          let circle_svg = d3.select(this);
+          cx = +circle_svg.attr("cx");
+          cy = +circle_svg.attr("cy");
+
+          cx += index === rows.length-1 ? -150 : 15;
+
+          let text = `${circle.date} -> ${circle[row_field_name]}`
+
+          showInfo(chart, cx, cy-5, text)
+        })
+        .on("mouseleave", function() {
+          d3.select("text.info-text").remove()
+        })
 
     })
+  }
+
+  function showInfo(chart, x, y, text) {
+    chart.append("text")
+      .classed("info-text", true)
+      .attr("x", x)
+      .attr("y", y)
+      .text(text)
   }
 
   function drawGridLine(axis_name) {
