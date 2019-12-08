@@ -11,14 +11,18 @@
 
 <body style="text-align: center;">
 
-  <select name="row_field_name" id="row_field_name"></select>
-
   <div id="gibdd_stat_chart"></div>
 
 </body>
 
 <script>
   const log = console.log;
+
+  const colors = {
+    "dtp": "grey",
+    "pogibli": "red",
+    "raneni": "yellow"
+  }
 
   const columns_en_ru = {
     "Дата": "date",
@@ -29,25 +33,6 @@
     "Ранено детей": "raneno_detei"
   };
 
-  var options = Object.keys(columns_en_ru);
-  options.shift();
-
-  var row_field_name = "dtp"
-
-  d3.select("#row_field_name")
-    .on("change", function (item) {
-      d3.select("#gibdd_stat_chart").select("svg").remove();
-
-      row_field_name = d3.select(this).node().value
-      drawChart(row_field_name);
-    })
-    .selectAll("option")
-    .data(options).enter()
-    .append("option")
-    .attr("value", item => columns_en_ru[item])
-    .text(item => item)
-
-
   var chart_params = {
     width: document.documentElement.clientWidth - 100,
     height: document.documentElement.clientHeight - 100,
@@ -57,22 +42,38 @@
   const parseDate = d3.timeParse("%d.%m.%Y");
   const formatDate = d3.timeFormat('%d.%m.%Y');
 
-  function drawChart(row_field_name) {
+  function drawChart() {
 
     var chart = d3.select("#gibdd_stat_chart").append("svg")
       .attr("width", chart_params.width)
-      .attr("height", chart_params.height);
+      .attr("height", chart_params.height)
 
 
     d3.csv("crash_info_file.csv", function (row) {
       var row_obj = {}
       for (let key_word in row) {
-        row_obj[columns_en_ru[key_word]] = row[key_word]
+        row_obj[columns_en_ru[key_word]] = columns_en_ru[key_word] === "date" ? row[key_word] : +row[key_word];
       }
-      row_obj["date_obj"] = parseDate(row_obj["date"]);
+      row_obj.date_obj = parseDate(row_obj["date"]);
+      row_obj.pogibli += row_obj.pogiblo_detei
+      row_obj.raneni += row_obj.raneno_detei
 
       return row_obj;
     }).then(function (rows) {
+      var dtp = { min: 0, max: 0 };
+      var pogibli = { min: 0, max: 0 };
+      var raneni = { min: 0, max: 0 };
+
+      [dtp.min, dtp.max] = d3.extent(rows, row => row.dtp);
+      [pogibli.min, pogibli.max] = d3.extent(rows, row => row.pogibli);
+      [raneni.min, raneni.max] = d3.extent(rows, row => row.raneni);
+
+      var max_min_arr = [
+        ...Object.values(dtp),
+        ...Object.values(pogibli),
+        ...Object.values(raneni),
+      ]
+
       var date_min, date_max;
       [date_min, date_max] = d3.extent(rows, row => row.date);
 
@@ -81,7 +82,7 @@
         .range([chart_params.margin.left, chart_params.width - chart_params.margin.right]);
 
       var xAxis = d3.axisBottom(xScale)
-        .ticks(rows.length-1)
+        .tickValues([parseDate(date_min)])
         .tickFormat(formatDate)
         .tickPadding(10)
 
@@ -90,18 +91,14 @@
         .attr("transform", "translate(0, " + (chart_params.height - chart_params.margin.bottom) + ")")
         .call(xAxis)
 
-      drawGridLine("x")
 
-
-      var min_y, max_y;
-      [min_y, max_y] = d3.extent(rows, row => row[row_field_name]);
+      var max_y = d3.max(max_min_arr);
       const yScale = d3.scaleLinear()
-        .domain([min_y, max_y])
-        .range([chart_params.height - chart_params.margin.bottom, chart_params.margin.top]);
-
+        .domain([0, max_y])
+        .range([chart_params.height - chart_params.margin.bottom, 3 * chart_params.margin.top]);
 
       var yAxis = d3.axisLeft(yScale)
-        .tickValues(rows.map(row => row[row_field_name]))
+        .tickValues(max_min_arr)
         .tickFormat(d3.format("d"))
         .tickPadding(10)
 
@@ -110,44 +107,54 @@
         .attr("transform", "translate(" + chart_params.margin.left + ", 0)")
         .call(yAxis)
 
-      drawGridLine("y");
 
+      drawColumnChart(chart, rows, "raneni", { x: xScale, y: yScale });
+      drawColumnChart(chart, rows, "dtp", { x: xScale, y: yScale });
+      drawColumnChart(chart, rows, "pogibli", { x: xScale, y: yScale });
+    })
+  }
 
-      var line = d3.line()
-        .x(row => xScale(row.date_obj))
-        .y(row => yScale(row[row_field_name]))
-        .curve(d3.curveMonotoneX)
+  function drawColumnChart(chart, rows, row_field_name, scales = {}) {
+    var bar_width = 20;
 
-      chart.append("path")
-        .attr("d", line(rows))
-        .attr("fill", "none")
-        .attr("stroke", "black")
-        .attr("stroke-dasharray", 2)
+    chart.selectAll(`rect.bar.${row_field_name}`)
+      .data(rows).enter()
+      .append("rect")
+      .classed("bar", true)
+      .classed(row_field_name, true)
+      .attr("column_name", row_field_name)
+      .attr("x", (row, index) => bar_width * index + chart_params.margin.left)
+      .attr("y", row => scales.y(row[row_field_name]))
+      .attr("width", bar_width)
+      .attr("height", row => chart_params.height - chart_params.margin.bottom - scales.y(row[row_field_name]))
+      .attr("stroke", "black")
+      .attr("stroke-dasharray", 2)
+      .style("cursor", "pointer")
+      .attr("fill", colors[row_field_name])
+      .on("mouseenter", function (row) {
+        var column_name = d3.select(this).attr("column_name");
+        var info_text = `${row.date}: ${row[column_name]}`;
+        if(row_field_name !== "dtp") {
+          info_text += " (среди них детей: ";
+          info_text += row_field_name === "pogibli" ? row.pogiblo_detei : row.raneno_detei;
+          info_text += ")"
+        }
+        showInfo(chart, d3.event.clientX, d3.event.clientY, info_text)
 
-      chart.selectAll("circle.gibdd_circle." + row_field_name)
-        .data(rows).enter()
-        .append("circle")
-        .classed("gibdd_circle", true)
-        .classed(row_field_name, true)
-        .attr("cx", row => xScale(row.date_obj))
-        .attr("cy", row => yScale(row[row_field_name]))
-        .attr("r", 10)
-        .attr("fill", "blue")
-        .on("mouseenter", function(circle, index) {
-          let circle_svg = d3.select(this);
-          cx = +circle_svg.attr("cx");
-          cy = +circle_svg.attr("cy");
+        showOnlySelected(chart, column_name)
+      })
+      .on("mouseleave", function () {
+        d3.select(".info-text").remove()
+        d3.selectAll("rect.bar").style("display", "")
+        d3.selectAll("rect.bar").style("opacity", 1)
+      })
+  }
 
-          cx += index === rows.length-1 ? -150 : 15;
-
-          let text = `${circle.date} -> ${circle[row_field_name]}`
-
-          showInfo(chart, cx, cy-5, text)
-        })
-        .on("mouseleave", function() {
-          d3.select("text.info-text").remove()
-        })
-
+  function showOnlySelected(chart, column_name) {
+    chart.selectAll("rect.bar").each(function(bar) {
+      var element = d3.select(this)
+      //element.style("display", element.attr("column_name") === column_name ? "" : "none");
+      element.style("opacity", element.attr("column_name") === column_name ? 1 : 0.3);
     })
   }
 
@@ -159,18 +166,10 @@
       .text(text)
   }
 
-  function drawGridLine(axis_name) {
-    d3.selectAll("g."+axis_name+"-axis g.tick")
-      .append("line")
-      .classed("line", true)
-      .attr("x0", 0)
-      .attr("y0", 0)
-      .attr("x1", axis_name == "y" ? chart_params.width : 0)
-      .attr("y1", axis_name == "y" ? 0 : -chart_params.height)
-      .style("stroke", "rgba(0, 0, 0, 0.15)")
+  function drawLegend(chart, scales = {}) {
   }
 
-  drawChart(row_field_name)
+  drawChart()
 </script>
 
 </html>
