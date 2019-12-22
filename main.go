@@ -18,6 +18,7 @@ type Data struct {
 
 func main() {
 	log_file, _ := os.OpenFile("/var/www/html/Statistic/Gibdd/log.txt", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
+	log_file.WriteString("\nStart parsing..." + "\n")
 
 	resp, err := http.Get("https://xn--90adear.xn--p1ai/") // гибдд.рф
 	if err != nil {
@@ -102,4 +103,5 @@ func main() {
 
 		crash_info_file.WriteString(strings.Trim(fields_str, ",") + "\n")
 	}
+	log_file.WriteString("Parsing end. Date: " + parse_date + "\n")
 }
