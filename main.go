@@ -17,16 +17,18 @@ type Data struct {
 }
 
 func main() {
+	log_file, _ := os.OpenFile("log.txt", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
+
 	resp, err := http.Get("https://xn--90adear.xn--p1ai/") // гибдд.рф
 	if err != nil {
-		fmt.Println(err)
+		log_file.WriteString(err.Error() + "\n")
 		return
 	}
 	defer resp.Body.Close()
 
 	page, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-		fmt.Println(err)
+		log_file.WriteString(err.Error() + "\n")
 		return
 	}
 
@@ -66,7 +68,7 @@ func main() {
 
 	crash_info_file, err := os.OpenFile(crash_info_file_name, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
-		fmt.Println(err)
+		log_file.WriteString(err.Error() + "\n")
 		return
 	}
 	defer crash_info_file.Close()
@@ -76,7 +78,7 @@ func main() {
 	csv_bytes := make([]byte, crash_info_file_stat.Size())
 	_, err = crash_info_file.Read(csv_bytes)
 	if err != nil {
-		fmt.Println(err)
+		log_file.WriteString(err.Error() + "\n")
 		return
 	}
 
