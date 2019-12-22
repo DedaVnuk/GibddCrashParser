@@ -17,7 +17,7 @@ type Data struct {
 }
 
 func main() {
-	log_file, _ := os.OpenFile("log.txt", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
+	log_file, _ := os.OpenFile("/var/www/html/Statistic/Gibdd/log.txt", os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
 
 	resp, err := http.Get("https://xn--90adear.xn--p1ai/") // гибдд.рф
 	if err != nil {
@@ -64,7 +64,7 @@ func main() {
 		fmt.Printf("%s -> %s \n", value.Name, value.Value)
 	}
 
-	crash_info_file_name := "crash_info_file.csv"
+	crash_info_file_name := "/var/www/html/Statistic/Gibdd/crash_info_file.csv"
 
 	crash_info_file, err := os.OpenFile(crash_info_file_name, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
