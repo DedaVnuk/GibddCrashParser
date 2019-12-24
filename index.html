@@ -6,216 +6,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="./Chart.js"></script>
   <title>Статистика аварий</title>
 </head>
 
 <body style="text-align: center;">
 
-  <div id="gibdd_stat_chart"></div>
+  <div id="chart"></div>
 
 </body>
 
 <script>
   const log = console.log;
 
-  const colors = {
-    "dtp": "grey",
-    "pogibli": "red",
-    "raneni": "yellow"
-  }
-
-  const columns_en_ru = {
-    "Дата": "date",
-    "ДТП": "dtp",
-    "Погибли": "pogibli",
-    "Погибло детей": "pogiblo_detei",
-    "Ранены": "raneni",
+  const headers = {
+    "Дата": "date", 
+    "ДТП": "dtp", 
+    "Погибли": "pogibli", 
+    "Погибло детей": "pogiblo_detei", 
+    "Ранены": "raneni", 
     "Ранено детей": "raneno_detei"
-  };
-
-  var chart_params = {
-    width: document.documentElement.clientWidth - 100,
-    height: document.documentElement.clientHeight - 100,
-    margin: { top: 30, bottom: 40, left: 50, right: 50 },
   }
 
-  const parseDate = d3.timeParse("%d.%m.%Y");
-  const formatDate = d3.timeFormat('%d.%m.%Y');
-
-  function drawChart() {
-
-    var chart = d3.select("#gibdd_stat_chart").append("svg")
-      .attr("width", chart_params.width)
-      .attr("height", chart_params.height)
-
-
-    d3.csv("crash_info_file.csv", function (row) {
-      var row_obj = {}
-      for (let key_word in row) {
-        row_obj[columns_en_ru[key_word]] = columns_en_ru[key_word] === "date" ? row[key_word] : +row[key_word];
+  const parseDate = d3.timeParse("%d.%m.%Y")
+  d3.csv("crash_info_file.csv", function(row) {
+    Object.keys(headers).forEach(header => {
+      row[headers[header]] = row[header];
+      if(headers[header] == "date") {
+        row.date_obj = parseDate(row.date)
+      } else {
+        row[headers[header]] = +row[header];
       }
-      row_obj.date_obj = parseDate(row_obj["date"]);
-      row_obj.pogibli += row_obj.pogiblo_detei
-      row_obj.raneni += row_obj.raneno_detei
-
-      return row_obj;
-    }).then(function (rows) {
-
-      var date_min, date_max;
-      [date_min, date_max] = d3.extent(rows, row => row.date);
-
-      const xScale = d3.scaleTime()
-        .domain([parseDate(date_min), parseDate(date_max)])
-        .range([chart_params.margin.left, chart_params.width - chart_params.margin.right]);
-
-      var xAxis = d3.axisBottom(xScale)
-        .tickValues([parseDate(date_min)])
-        .tickFormat(formatDate)
-        .tickPadding(10)
-
-      chart.append("g")
-        .classed("x-axis", true)
-        .attr("transform", "translate(0, " + (chart_params.height - chart_params.margin.bottom) + ")")
-        .call(xAxis)
-
-      var dtp = { min: 0, max: 0 };
-      var pogibli = { min: 0, max: 0 };
-      var raneni = { min: 0, max: 0 };
-
-      [dtp.min, dtp.max] = d3.extent(rows, row => row.dtp);
-      [pogibli.min, pogibli.max] = d3.extent(rows, row => row.pogibli);
-      [raneni.min, raneni.max] = d3.extent(rows, row => row.raneni);
-
-      var max_min_arr = [
-        ...Object.values(dtp),
-        ...Object.values(pogibli),
-        ...Object.values(raneni),
-      ]
-
-      var max_y = d3.max(max_min_arr);
-      const yScale = d3.scaleLinear()
-        .domain([0, max_y])
-        .range([chart_params.height - chart_params.margin.bottom, 3 * chart_params.margin.top]);
-
-      var yAxis = d3.axisLeft(yScale)
-        .tickValues(max_min_arr)
-        .tickFormat(d3.format("d"))
-        .tickPadding(10)
-
-      chart.append("g")
-        .classed("y-axis", true)
-        .attr("transform", "translate(" + chart_params.margin.left + ", 0)")
-        .call(yAxis)
-
-
-      drawColumnChart(chart, rows, "raneni", { x: xScale, y: yScale });
-      drawColumnChart(chart, rows, "dtp", { x: xScale, y: yScale });
-      drawColumnChart(chart, rows, "pogibli", { x: xScale, y: yScale });
+      delete row[header];
+      
+      
     })
-  }
-
-  function drawColumnChart(chart, rows, row_field_name, scales = {}) {
-    var bar_width = 20;
-
-    chart.selectAll(`rect.bar.${row_field_name}`)
-      .data(rows).enter()
-      .append("rect")
-      .classed("bar", true)
-      .classed(row_field_name, true)
-      .attr("column_name", row_field_name)
-      .attr("x", (row, index) => bar_width * index + chart_params.margin.left)
-      .attr("y", row => scales.y(row[row_field_name]))
-      .attr("width", bar_width)
-      .attr("height", row => chart_params.height - chart_params.margin.bottom - scales.y(row[row_field_name]))
-      .attr("stroke", "black")
-      .attr("stroke-dasharray", 2)
-      .style("cursor", "pointer")
-      .attr("fill", colors[row_field_name])
-      .on("mouseenter", function (row) {
-        var column_name = d3.select(this).attr("column_name");
-        var info_text = `${row.date}: ${row[column_name]}`;
-        if (row_field_name !== "dtp") {
-          info_text += " (среди них детей: ";
-          info_text += row_field_name === "pogibli" ? row.pogiblo_detei : row.raneno_detei;
-          info_text += ")"
-        }
-        showInfo(chart, d3.event.clientX, d3.event.clientY, info_text)
-
-        showOnlySelected(chart, column_name)
-      })
-      .on("mouseleave", function () {
-        d3.select(".info-text").remove()
-        d3.selectAll("rect.bar").style("opacity", 1)
-      })
-
-    drawLegend(chart)
-  }
-
-  function showOnlySelected(chart, column_name) {
-    chart.selectAll("rect.bar").each(function (bar) {
-      var element = d3.select(this)
-      element.style("opacity", element.attr("column_name") === column_name ? 1 : 0.15);
-    })
-  }
-
-  function showInfo(chart, x, y, text) {
-    chart.append("text")
-      .classed("info-text", true)
-      .attr("x", x)
-      .attr("y", y)
-      .text(text)
-  }
-
-  function drawLegend(chart) {
-    var legend_items = [
-      { name_en: "dtp", name_ru: "ДТП", color: colors["dtp"] },
-      { name_en: "pogibli", name_ru: "Погибли", color: colors["pogibli"] },
-      { name_en: "raneni", name_ru: "Ранены", color: colors["raneni"] },
-    ]
-    var x = chart.attr("width") / 3;
-
-    chart.selectAll("rect.legend-rect")
-      .data(legend_items).enter()
-      .append("rect")
-      .classed("legend-rect", true)
-      .attr("name_en", item => item.name_en)
-      .attr("x", x)
-      .attr("y", (item, index) => 10 + index * 20)
-      .attr("width", 40)
-      .attr("height", 15)
-      .style("fill", item => item.color)
-      .style("cursor", "pointer")
-      .on("mouseenter", showOnlyChecked)
-      .on("mouseleave", showAllBars)
-
-    chart.selectAll("text.legend-text")
-      .data(legend_items).enter()
-      .append("text")
-      .classed("legend-text", true)
-      .attr("name_en", item => item.name_en)
-      .attr("x", x + 50)
-      .attr("y", (item, index) => 23 + index * 20)
-      .text(item => item.name_ru)
-      .style("cursor", "pointer")
-      .on("mouseenter", showOnlyChecked)
-      .on("mouseleave", showAllBars)
-
-    function showOnlyChecked() {
-      var checked_elem = d3.select(this)
-      d3.selectAll("rect.bar").each(function () {
-        var elem = d3.select(this)
-        elem.style("display", elem.classed(checked_elem.attr("name_en")) ? "" : "none")
-      })
-    }
+    row.pogibli += +row.pogiblo_detei
+    row.raneni += +row.raneno_detei
+    return row;
+  }).then(function(rows) {
+    var chart = new Chart(rows);
+    chart.draw()
+  })
 
 
-  }
-
-  function showAllBars() {
-    d3.selectAll("rect.bar").style("display", "")
-  }
-
-  drawChart()
 </script>
 
 </html>
