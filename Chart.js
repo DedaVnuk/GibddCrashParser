@@ -128,6 +128,9 @@ class Chart {
       .append("text")
       .attr("x", (date, index) => index * this.getBarWidth())
       .attr("y", this.height-this.margin.bottom - 3)
+      .attr("fill", row => {
+        return ["Saturday", "Sunday"].includes(row.date_obj.toLocaleDateString("en-US", {weekday: "long"})) ? "rgba(226, 43, 43, 0.72)" : ""
+      })
       .on("mouseenter", function(row) {
         self.svg.append("rect")
           .classed("tick-date", true)
